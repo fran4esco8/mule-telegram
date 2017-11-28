@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns:json="http://www.mulesoft.org/schema/mule/json" xmlns:objectstore="http://www.mulesoft.org/schema/mule/objectstore" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/objectstore http://www.mulesoft.org/schema/mule/objectstore/current/mule-objectstore.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd">
+    <http:request-config name="HTTP_Request_Configuration_Rasp" protocol="HTTPS" host="api.rasp.yandex.net" port="443" basePath="/v3.0" doc:name="HTTP Request Configuration"/>
+    <http:listener-config name="HTTP_Listener_Configuration" host="localhost" port="8081" doc:name="HTTP Listener Configuration"/>
+    <flow name="processmessageFlow">
+      <vm:inbound-endpoint exchange-pattern="one-way" path="MessageQueue" connector-ref="VM" doc:name="VM"/>
+        <objectstore:retrieve config-ref="ObjectStore__Connector" key="#[payload]" doc:name="ObjectStore"/>
+        <set-variable variableName="chatId" value="#[payload.message.chat.id]" doc:name="ChatId_Variable"/>
+        <logger message="payload.message.text" level="INFO" doc:name="Logger"/>
+        <choice doc:name="Choice">
+            <when expression="#[payload.message.text == &quot;/help&quot;]">
+                <flow-ref name="Help_Flow" doc:name="Help_Flow"/>
+            </when>
+            <when expression="#[payload.message.text == &quot;/start&quot;]">
+                <flow-ref name="Start_Flow" doc:name="Start_Flow"/>
+            </when>
+            <when expression="#[payload.message.text == &quot;&#1044;&#1086;&#1084;&#1086;&#1081;&quot;]">
+                <flow-ref name="WorkToHomeFlow" doc:name="WorkToHomeFlow"/>
+            </when>
+            <when expression="#[payload.message.text == &quot;&#1053;&#1072; &#1088;&#1072;&#1073;&#1086;&#1090;&#1091;&quot;]">
+                <flow-ref name="HomeToWorkFlow" doc:name="HomeToWorkFlow"/>
+            </when>
+            <when expression="#[payload.message.text == &quot;&#1055;&#1086;&#1075;&#1086;&#1076;&#1072;&quot;]">
+                <flow-ref name="weatherflowSub_Flow" doc:name="WeatherflowSub_Flow"/>
+            </when>
+            <when expression="#[payload.message.text == &quot;&#1053;&#1072; &#1085;&#1077;&#1076;&#1077;&#1083;&#1102;&quot;]">
+                <flow-ref name="weatherFlowWeek" doc:name="weatherFlowWeek"/>
+            </when>
+            <otherwise>
+                <set-variable variableName="textAnswer" value="#[payload.message.text]" doc:name="Variable"/>
+            </otherwise>
+        </choice>
+        <set-property propertyName="Content-type" value="application/json" doc:name="Property"/>
+        <set-payload value="{&quot;chat_id&quot;: #[flowVars.chatId], &quot;text&quot;: &quot;#[flowVars.textAnswer]&quot;}" doc:name="Set Payload"/>
+        <http:request config-ref="HTTP_Request_Configuration" path="sendMessage" method="POST" doc:name="HTTP"/>
+  	</flow>
+    
+    <sub-flow name="Start_Flow">
+        <set-variable variableName="textAnswer" value="&#1055;&#1088;&#1080;&#1074;&#1077;&#1090; &#1095;&#1077;&#1083;&#1086;&#1074;&#1077;&#1082; #[payload.message.from.first_name]" doc:name="Variable"/>
+    </sub-flow>
+    <sub-flow name="Help_Flow">
+        <set-variable variableName="textAnswer" value="&#1058;&#1074;&#1086;&#1088;&#1080; &#1074;&#1089;&#1077; &#1095;&#1090;&#1086; &#1093;&#1086;&#1095;&#1077;&#1096;&#1100;" doc:name="Variable"/>
+    </sub-flow>
+</mule>

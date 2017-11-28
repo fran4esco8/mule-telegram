@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:json="http://www.mulesoft.org/schema/mule/json"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+<sub-flow name="GetTimetable">
+        <http:request config-ref="HTTP_Request_Configuration_Rasp" path="/search/?apikey={apikey}&amp;from={stationFrom}&amp;to={stationTo}&amp;date={transDate}&amp;transport_types=suburban" method="GET" doc:name="HTTP">
+            <http:request-builder>
+                <http:uri-param paramName="apikey" value="${apikeyYandex}"/>
+                <http:uri-param paramName="stationFrom" value="#[flowVars.stationFrom]"/>
+                <http:uri-param paramName="stationTo" value="#[flowVars.stationTo]"/>
+                <http:uri-param paramName="transDate" value="#[server.dateTime.format('yyyy-MM-dd')]"/>
+            </http:request-builder>
+        </http:request>
+        <json:json-to-object-transformer returnClass="java.lang.Object" doc:name="JSON to Object"/>
+        <set-variable variableName="textMessage" value="&#1042;&#1088;&#1077;&#1084;&#1103; &#1086;&#1090;&#1087;&#1088;&#1072;&#1074;&#1083;&#1077;&#1085;&#1080;&#1103;: #['\n']" doc:name="ResultVariable"/>
+        <foreach doc:name="For Each" collection="#[payload.segments]">
+            <set-variable variableName="departureTime" value="#[payload.departure]" doc:name="Variable"/>
+            <set-variable variableName="needToAdd" value="false" doc:name="Variable"/>
+            <component class="telegrambot.stationCompl" doc:name="Java"/>
+            <choice doc:name="Choice">
+                <when expression="#[flowVars.needToAdd == true]">
+                    <set-variable variableName="textMessage" value="#[flowVars.textMessage]#[flowVars.resultTime]#['\n']" doc:name="Variable"/>
+                </when>
+                <otherwise>
+                    <remove-variable variableName="#[flowVars.needToAdd]" doc:name="Variable"/>
+                </otherwise>
+            </choice>
+        </foreach>
+        <set-payload value="null" doc:name="Set Payload"/>
+        <set-variable variableName="textAnswer" value="#[flowVars.textMessage]" doc:name="Variable"/>
+    </sub-flow>
+    <sub-flow name="WorkToHomeFlow">
+        <set-variable variableName="stationFrom" value="${stationOstankino}" doc:name="VariableFrom"/>
+        <set-variable variableName="stationTo" value="${stationShodnya}" doc:name="VariableTo"/>
+        <flow-ref name="GetTimetable" doc:name="GetTimetable"/>
+    </sub-flow>
+    <sub-flow name="HomeToWorkFlow">
+        <set-variable variableName="stationFrom" value="${stationShodnya}" doc:name="VariableFrom"/>
+        <set-variable variableName="stationTo" value="${stationOstankino}" doc:name="VariableTo"/>
+        <flow-ref name="GetTimetable" doc:name="GetTimetable"/>
+    </sub-flow>
+</mule>

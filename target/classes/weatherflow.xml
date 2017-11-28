@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:json="http://www.mulesoft.org/schema/mule/json" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd">
+    <sub-flow name="weatherflowSub_Flow">
+        <http:request config-ref="HTTP_Request_Configuration_weather" path="/weather?zip=${zip},ru&amp;APPID=${appIdWeather}&amp;units=metric" method="GET" doc:name="HTTP"/>
+        <json:json-to-object-transformer returnClass="java.lang.Object" doc:name="JSON to Object"/>
+        <set-variable variableName="textAnswer" value="&#1055;&#1088;&#1086;&#1075;&#1085;&#1086;&#1079; &#1087;&#1086;&#1075;&#1086;&#1076;&#1099;" doc:name="Variable"/>
+        <flow-ref name="AnalysTempSub_Flow" doc:name="AnalysTempSub_Flow"/>
+        <set-payload value="null" doc:name="Set Payload"/>
+    </sub-flow>
+    <sub-flow name="weatherFlowWeek">
+        <http:request config-ref="HTTP_Request_Configuration_weather" path="/forecast?zip=${zip},ru&amp;APPID=${appIdWeather}&amp;units=metric" method="GET" doc:name="HTTP"/>
+        <json:json-to-object-transformer returnClass="java.lang.Object" doc:name="JSON to Object"/>
+        <set-variable variableName="textAnswer" value="&#1055;&#1088;&#1086;&#1075;&#1085;&#1086;&#1079; &#1087;&#1086;&#1075;&#1086;&#1076;&#1099;" doc:name="Variable"/>
+        <foreach collection="#[payload.list]" doc:name="For Each">
+            <flow-ref name="AnalysTempSub_Flow" doc:name="AnalysTempSub_Flow"/>
+        </foreach>
+        <set-payload value="null" doc:name="Set Payload"/>
+    </sub-flow>
+    <sub-flow name="AnalysTempSub_Flow">
+        <set-variable variableName="temp" value="#[payload.main.temp]&#8304;, #[payload.weather[0].main], wind: #[payload.wind.speed]m/s" doc:name="VariableTemp"/>
+        <set-variable variableName="dateWeather" value="#[payload.dt]" doc:name="VariableDate"/>
+        <component class="telegrambot.analysWeather" doc:name="AnalysTemp"/>
+        <set-variable variableName="textAnswer" value="#[flowVars.textAnswer] #['\n'] #[flowVars.dateWeather]: #[flowVars.temp]" doc:name="Variable"/>
+    </sub-flow>
+</mule>

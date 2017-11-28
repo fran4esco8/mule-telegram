@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:vm="http://www.mulesoft.org/schema/mule/vm" xmlns:jms="http://www.mulesoft.org/schema/mule/jms" xmlns:objectstore="http://www.mulesoft.org/schema/mule/objectstore" xmlns:json="http://www.mulesoft.org/schema/mule/json" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:quartz="http://www.mulesoft.org/schema/mule/quartz" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/quartz http://www.mulesoft.org/schema/mule/quartz/current/mule-quartz.xsd
+http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.mulesoft.org/schema/mule/objectstore http://www.mulesoft.org/schema/mule/objectstore/current/mule-objectstore.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd
+http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+    <http:request-config name="HTTP_Request_Configuration" protocol="HTTPS" host="api.telegram.org" port="443" basePath="bot${token}" doc:name="HTTP Request Configuration"/>
+    <quartz:connector name="Quartz" validateConnections="true" doc:name="Quartz"/>
+    <objectstore:config name="ObjectStore__Connector" partition="UpdateIdMemory" doc:name="ObjectStore: Connector" persistent="true"/>
+    <vm:connector name="VM" validateConnections="true" doc:name="VM">
+        <vm:queue-profile>
+            <default-persistent-queue-store/>
+        </vm:queue-profile>
+    </vm:connector>
+    <flow name="telegrambotFlow">
+        <quartz:inbound-endpoint jobName="StartRequest" repeatInterval="1000" startDelay="10000" connector-ref="Quartz" responseTimeout="10000" doc:name="Quartz">
+            <quartz:event-generator-job/>
+        </quartz:inbound-endpoint>
+        <http:request config-ref="HTTP_Request_Configuration" path="/getUpdates" method="GET" doc:name="HTTP"/>
+        
+        <json:json-to-object-transformer returnClass="java.lang.Object" doc:name="JSON to Object"/>
+        <foreach doc:name="For Each" collection="#[payload.result]">
+            <set-variable variableName="update_id" value="#[payload.'update_id']" doc:name="Variable Update_id"/>
+            <set-variable variableName="PayloadItem" value="#[payload]" doc:name="Variable Payload"/>
+            <flow-ref name="memoryObject" doc:name="memoryObject"/>
+        </foreach>
+    </flow>
+    <sub-flow name="memoryObject">
+        <objectstore:contains config-ref="ObjectStore__Connector" key="#[flowVars.update_id]" doc:name="ObjectStoreContains"/>
+        <choice doc:name="Choice">
+            <when expression="#[message.payload == false]">
+                <objectstore:store config-ref="ObjectStore__Connector" key="#[flowVars.update_id]" value-ref="#[flowVars.PayloadItem]" doc:name="ObjectStore"/>
+                <set-payload value="#[flowVars.update_id]" doc:name="Set Payload"/>
+                <vm:outbound-endpoint exchange-pattern="one-way" path="MessageQueue" connector-ref="VM" doc:name="VM"/>
+            </when>
+            <otherwise>
+                <set-property propertyName="http.status" value="200" doc:name="Property"/>
+            </otherwise>
+        </choice>
+    </sub-flow>
+</mule>
